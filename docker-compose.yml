@@ -1,0 +1,122 @@
+version: '3.8'
+
+services:
+  # Data Preprocessing Agent
+  data-preprocessing-api:
+    build:
+      context: ./data-preprocessing-agent
+      dockerfile: Dockerfile
+    container_name: data-preprocessing-api
+    restart: unless-stopped
+    ports:
+      - "10003:10003"
+    volumes:
+      - ./data-preprocessing-agent:/app
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - datascience-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10003/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ML Agent
+  ml-agent:
+    build: 
+      context: ./ml-agent
+      dockerfile: Dockerfile
+    container_name: ml-agent
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./ml-agent/mlruns:/mlruns
+    environment:
+      - MLFLOW_TRACKING_URI=file:///mlruns
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - datascience-network
+
+  # LLM Orchestrator
+  llm-orchestrator:
+    build:
+      context: ./llm-orchestrator
+      dockerfile: Dockerfile
+    container_name: llm-orchestrator
+    restart: unless-stopped
+    ports:
+      - "9999:9999"
+    volumes:
+      - llm_uploads:/app/uploads
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      # DEFAULT LLM PROVIDER - ADD THIS LINE
+      - DEFAULT_LLM_PROVIDER=${DEFAULT_LLM_PROVIDER:-groq}
+      # Ollama Configuration
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # LLM Settings
+      - TEMPERATURE=${TEMPERATURE:-0.7}
+    networks:
+      - datascience-network
+  # CES 
+  ces:
+    build:
+      context: ./ces
+      dockerfile: Dockerfile
+    container_name: ces
+    restart: unless-stopped
+    ports:
+      - "1000:1000"
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - datascience-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:1000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # File Manager - Backend
+  file-manager:
+    build:
+      context: ./file-manager
+      dockerfile: Dockerfile
+    container_name: file-manager
+    restart: unless-stopped
+    ports:
+      - "20001:20001"
+    volumes:
+      - file_uploads:/app/uploads
+    environment:
+      - UPLOAD_DIR=/app/uploads
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - LOG_LEVEL=${LOG_LEVEL:-ERROR}
+    networks:
+      - datascience-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:20001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# Shared network for all services
+networks:
+  datascience-network:
+    driver: bridge
+
+# Shared volumes
+volumes:
+  file_uploads:
+    driver: local
+  llm_uploads:
+    driver: local

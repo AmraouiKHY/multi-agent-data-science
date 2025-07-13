@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  data-preprocessing-api:
+    build: .
+    ports:
+      - "10003:10003"
+    volumes:
+      - ./:/app
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10003/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
